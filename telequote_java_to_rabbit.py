@@ -57,11 +57,6 @@ def create_logger(name, filename, mode, level):
 
 LOGGER = create_logger(__name__, os.path.join(log_dir, f"raw_{strftime('%Y_%m_%d')}.txt"), "a+", g_log_level)
 
-
-# Cryptocomapre API key
-crypto_host_url = config_data['crypto_api'].get('host_url', 'wss://streamer.cryptocompare.com/v2')
-api_key = config_data['crypto_api'].get('key', 'None')
-crypto_subscriptions = config_data['crypto_api'].get('subscriptions', ["2~Coinbase~BTC~USD", "2~Coinbase~ETH~USD"])
 # Data queue
 data_queue = Queue()
 
@@ -319,11 +314,11 @@ class ExamplePublisher(object):
             self._acked += 1
         elif confirmation_type == 'nack':
             self._nacked += 1
-        self._deliveries.remove(method_frame.method.delivery_tag)
-        LOGGER.debug(
-            'Published %i messages, %i have yet to be confirmed, '
-            '%i were acked and %i were nacked', self._message_number,
-            len(self._deliveries), self._acked, self._nacked)
+        # self._deliveries.remove(method_frame.method.delivery_tag)
+        # LOGGER.debug(
+        #     'Published %i messages, %i have yet to be confirmed, '
+        #     '%i were acked and %i were nacked', self._message_number,
+        #     len(self._deliveries), self._acked, self._nacked)
 
     def schedule_next_message(self):
         """If we are not closing our connection to RabbitMQ, schedule another
@@ -332,6 +327,19 @@ class ExamplePublisher(object):
         """
         LOGGER.debug('Scheduling next message for %0.1f seconds', self.PUBLISH_INTERVAL)
         self._connection.ioloop.call_later(self.PUBLISH_INTERVAL, self.publish_message)
+
+    def counter_validate(self, data):
+        if not len(counter_filter_list):
+            return True
+        dict_data = json.loads(data.replace('\r\n', ''))
+        counter = dict_data.get('symbol', None)
+        if counter is None:
+            return False
+
+        for c in counter_filter_list:
+            if c in counter:
+                return True
+        return False
 
     def publish_message(self):
         """If the class is not stopping, publish a message to RabbitMQ,
@@ -358,13 +366,14 @@ class ExamplePublisher(object):
         LOGGER.debug(f'queue size: {q_size}')
         if q_size > 100:
             LOGGER.warning(f'[WARNING] Queue seem stuck: {q_size}')
-        data = json.dumps(message, ensure_ascii=False)
-        self._channel.basic_publish(self.EXCHANGE, self.ROUTING_KEY,
-                                    data,
-                                    properties)
-        self._message_number += 1
-        self._deliveries.append(self._message_number)
-        LOGGER.info('[Published message # %i] %s', self._message_number, message)
+        if self.counter_validate(message):
+            data = json.dumps(message, ensure_ascii=False)
+            self._channel.basic_publish(self.EXCHANGE, self.ROUTING_KEY,
+                                        data,
+                                        properties)
+            self._message_number += 1
+            # self._deliveries.append(self._message_number)
+            LOGGER.info('[Published message # %i] %s', self._message_number, message)
         self.schedule_next_message()
 
     def run(self):
@@ -591,50 +600,9 @@ def launch_program():
         # pull_thread.daemon = True
         pull_thread.start()
         backend_threads['pull_thread'] = pull_thread
-    # asyncio.get_event_loop().run_until_complete(cryptocompare())
 
 def filter_crypto_stream_data(data):
     return True
-
-async def cryptocompare():
-    recv_count = 0
-    url = f"{crypto_host_url}?api_key={api_key}"
-    sub_msg = json.dumps({
-        "action": "SubAdd",
-        "subs": crypto_subscriptions,
-    })
-    async with websockets.connect(url) as ws:
-        await ws.send(sub_msg)  # Subscribe Crypto Channels
-        while True:
-            try:
-                data = await ws.recv()
-            except websockets.ConnectionClosed:
-                if not ws.open:  # Handle Reconnect
-                    try:
-                        LOGGER.info('[cryptocompare] Websocket NOT connected. Trying to reconnect.')
-                        ws = await websockets.connect(url)
-                        await ws.send(sub_msg)
-                        LOGGER.info('[cryptocompare] Websocket Connected!')
-                        await asyncio.sleep(3)
-                    except Exception as expt:
-                        LOGGER.info(f'[cryptocompare error] {expt}')
-                        await asyncio.sleep(5)
-                continue
-                # break
-            try:
-                data = json.loads(data)
-                if data['TYPE'] == '2' or data['TYPE'] == '5':
-                    data_queue.put_nowait(data)
-                    recv_count += 1
-                    LOGGER.info(f'[cryptocompare-{len(data)}][Data Received #{recv_count}]')
-                else:
-                    LOGGER.info(f'[cryptocompare{-len(data)}][Data Received]{json.dumps(data)}')
-                LOGGER.debug(f'[cryptocompare-{len(data)}][Data Received]{json.dumps(data)}')
-            except Exception as expt:
-                if expt is ValueError:
-                    LOGGER.error(f'[cryptocompare] data is not json: {data}')
-                else:
-                    LOGGER.error(f'[cryptocompare] {expt}')
 
 
 if __name__ == '__main__':
@@ -642,6 +610,7 @@ if __name__ == '__main__':
     # exit()
     logging.basicConfig(level=logging.ERROR, format=LOG_FORMAT)
     backend_threads = {}
+    counter_filter_list = config_data.get('counter_filter', [])
     launch_program()
     while True:
         time.sleep(10)

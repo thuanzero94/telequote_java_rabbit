@@ -23,13 +23,5 @@ amqp_publisher_info:
 publisher_option:
   time: 0.01 # seconds
 
-crypto_api:
-  host_url: 'wss://streamer.cryptocompare.com/v2'
-  key: '2b800ecc81aacb432082a83a3b18e46ed50d99add0e4ab69b855075d189020b9' # Demo API Key by thuanzero94@gmail.com
-  subscriptions: ["5~CCCAGG~ETH~BTC", "5~CCCAGG~BTC~ETH", "5~CCCAGG~ETH~USDT", "5~CCCAGG~BTC~USDT", "5~CCCAGG~RVN~USDT",
-                  "5~CCCAGG~XRP~USDT", "5~CCCAGG~XRP~BTC", "5~CCCAGG~RVN~BTC", "5~CCCAGG~DASH~USDT", "5~CCCAGG~DASH~BTC",
-                  "5~CCCAGG~LINK~USDT", "5~CCCAGG~LINK~BTC", "5~CCCAGG~BTC~USD", "5~CCCAGG~BTC~EUR", "5~CCCAGG~BTC~SGD",
-                  "5~CCCAGG~BTC~VND", "5~CCCAGG~ETH~USD", "5~CCCAGG~ETH~EUR", "5~CCCAGG~ETH~SGD", "5~CCCAGG~DOT~USDT",
-                  "5~CCCAGG~DOT~BTC", "5~CCCAGG~ADA~USDT", "5~CCCAGG~ADA~BTC", "5~CCCAGG~ADA~ETH", "5~CCCAGG~KSM~USDT",
-                  "5~CCCAGG~KSM~BTC", "5~CCCAGG~KSM~ETH", "5~CCCAGG~BCH~USDT", "5~CCCAGG~BCH~BTC", "5~CCCAGG~BNB~BTC",
-                  "5~CCCAGG~BNB~USDT", "5~CCCAGG~BNB~ETH"]
+# ['EUR A0-FX', 'GBP A0-FX', 'XAU A0-FX', 'SN1Z2', 'SN1C1', 'AUD A0-FX', 'CHF A0-FX', 'JPY A0-FX', 'GHSIZ2', 'GHSIH3', 'GHSIX2', 'GHSIC1']
+counter_filter: ['A0-FX']

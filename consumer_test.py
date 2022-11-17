@@ -9,7 +9,7 @@ from pika.exchange_type import ExchangeType
 print('pika version: %s' % pika.__version__)
 
 connection = pika.BlockingConnection(
-    pika.ConnectionParameters(host='192.168.1.99', credentials=pika.credentials.PlainCredentials(username='telequoteFeed',
+    pika.ConnectionParameters(host='data.tradeprofx.com', credentials=pika.credentials.PlainCredentials(username='telequoteFeed',
                                                                                                password='Chunming0684')))
 
 main_channel = connection.channel()
@@ -26,10 +26,20 @@ def hello():
 connection.call_later(5, hello)
 
 msg = 0
+counter_list = []
 def callback(_ch, _method, _properties, body):
     global msg
     msg += 1
-    print(f'[Message #{msg}] {body.decode()}')
+    a= body.decode()
+    res = json.loads(a).replace('\r\n', '')
+    res = json.loads(res)
+    # print(res["symbol"])
+    if res.get('symbol', None) is None:
+        print(f"fail: {res}")
+    elif f"{res['symbol']}" not in counter_list:
+        counter_list.append(f"{res['symbol']}")
+        print(f'{len(counter_list)}: {counter_list}')
+    # print(f'[Message #{msg}] {res}')
 
 
 logging.basicConfig(level=logging.INFO)
