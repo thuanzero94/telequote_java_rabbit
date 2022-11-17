@@ -1,0 +1,35 @@
+log_level: 10 # 0: notset, 10:debug, 20:info, 30:warning, 40: error, 50:critical
+log_file_number_limit: 5 # Number of log file (per file with max size is log_file_size_limit)
+log_file_size_limit: 200 # MBytes
+log_keep_days: 14
+log_cleaning_time: 60  # Minutes
+
+server_relay:
+  host: '192.168.1.98'
+  port: 42222
+
+rabbit_server:
+  server: '127.0.0.1'
+  port: 5672
+  user: 'telequoteFeed'
+  password: 'Chunming0684'
+
+amqp_publisher_info:
+  exchange: 'amq.topic'
+  exchange_type: 'topic'  # 'direct', 'fanout', 'headers', 'topic'
+  duable: True
+  routing_key: 'example.changed'
+
+publisher_option:
+  time: 0.01 # seconds
+
+crypto_api:
+  host_url: 'wss://streamer.cryptocompare.com/v2'
+  key: '2b800ecc81aacb432082a83a3b18e46ed50d99add0e4ab69b855075d189020b9' # Demo API Key by thuanzero94@gmail.com
+  subscriptions: ["5~CCCAGG~ETH~BTC", "5~CCCAGG~BTC~ETH", "5~CCCAGG~ETH~USDT", "5~CCCAGG~BTC~USDT", "5~CCCAGG~RVN~USDT",
+                  "5~CCCAGG~XRP~USDT", "5~CCCAGG~XRP~BTC", "5~CCCAGG~RVN~BTC", "5~CCCAGG~DASH~USDT", "5~CCCAGG~DASH~BTC",
+                  "5~CCCAGG~LINK~USDT", "5~CCCAGG~LINK~BTC", "5~CCCAGG~BTC~USD", "5~CCCAGG~BTC~EUR", "5~CCCAGG~BTC~SGD",
+                  "5~CCCAGG~BTC~VND", "5~CCCAGG~ETH~USD", "5~CCCAGG~ETH~EUR", "5~CCCAGG~ETH~SGD", "5~CCCAGG~DOT~USDT",
+                  "5~CCCAGG~DOT~BTC", "5~CCCAGG~ADA~USDT", "5~CCCAGG~ADA~BTC", "5~CCCAGG~ADA~ETH", "5~CCCAGG~KSM~USDT",
+                  "5~CCCAGG~KSM~BTC", "5~CCCAGG~KSM~ETH", "5~CCCAGG~BCH~USDT", "5~CCCAGG~BCH~BTC", "5~CCCAGG~BNB~BTC",
+                  "5~CCCAGG~BNB~USDT", "5~CCCAGG~BNB~ETH"]
