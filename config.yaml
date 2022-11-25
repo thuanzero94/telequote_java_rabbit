@@ -20,6 +20,10 @@ amqp_publisher_info:
   duable: True
   routing_key: 'example.changed'
 
+amqp_latest_data_info:
+  interval: 0.5
+  routing_key: 'example.initial'
+
 publisher_option:
   time: 0.01 # seconds
 
