@@ -46,7 +46,7 @@ class SqlDB:
         cursor.close()
         return False
 
-    def update_latest_data(self, sql_data: dict):
+    def update_latest_data(self, sql_data: dict, query_type=None):
         """
 
         :param query_type: update / insert
@@ -56,20 +56,21 @@ class SqlDB:
         query = ''
         val = []
 
-        query_type = 'update'
-        if not self.check_symbol_existed(sql_data['symbol']):
-            query_type = 'insert'
+        if query_type is None:
+            query_type = 'update'
+            if not self.check_symbol_existed(sql_data['symbol']):
+                query_type = 'insert'
 
         if query_type == 'insert':
             query = f"INSERT INTO {self.LATEST_TABLE_NAME}({', '.join(self.LATEST_TABLE_COLUMN)}) " \
                        "VALUES('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')"
             val = (sql_data['symbol'], sql_data['bid'], sql_data['ask'], sql_data['last'], sql_data['change'], sql_data['high'], sql_data['low'], sql_data['open'], sql_data['prev_close'], sql_data['timestamp'])
         elif query_type == 'update':
-            query = f"UPDATE {self.LATEST_TABLE_NAME} SET bid='%s', last='%s', ask='%s', change='%s', `high`='%s', low='%s', `open`='%s', prev_close='%s', timestamp='%s' " \
+            query = f"UPDATE {self.LATEST_TABLE_NAME} SET bid='%s', last='%s', ask='%s', change='%s', high='%s', low='%s', open='%s', prev_close='%s', timestamp='%s' " \
                     "WHERE symbol='%s'"
             val = (sql_data['bid'], sql_data['last'], sql_data['ask'], sql_data['change'], sql_data['high'], sql_data['low'], sql_data['open'], sql_data['prev_close'], sql_data['timestamp'], sql_data['symbol'])
         try:
-            print(f'[SQL][{self.LATEST_TABLE_NAME} {query_type}] ' + query % val)
+            # print(f'[SQL][{self.LATEST_TABLE_NAME} {query_type}] ' + query % val)
             str_query = query % val
             cursor = self._connection.cursor()
             cursor.execute(str_query)
@@ -80,17 +81,22 @@ class SqlDB:
             self._connection.rollback()
 
     def get_all_to_dict(self):
-        query = f"SELECT * FROM {self.LATEST_TABLE_NAME}"
-        cursor = self._connection.cursor()
-        cursor.execute(query)
-        # result = cursor.fetchall()
-        data = [dict(zip(self.LATEST_TABLE_COLUMN, row))
-                for row in cursor.fetchall()]
+        data = None
+        try:
+            query = f"SELECT * FROM {self.LATEST_TABLE_NAME}"
+            cursor = self._connection.cursor()
+            cursor.execute(query)
+            # result = cursor.fetchall()
+            data = [dict(zip(self.LATEST_TABLE_COLUMN, row))
+                    for row in cursor.fetchall()]
 
-        self._connection.commit()
-        cursor.close()
-        # print(data)
-        return data
+            self._connection.commit()
+            cursor.close()
+            # print(data)
+            return data
+        except Exception as e:
+            data = None
+            return data
 
 
 def demo_data():

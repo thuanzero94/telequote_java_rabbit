@@ -65,6 +65,9 @@ data_queue = Queue()
 # update Queue
 update_latest_queue = Queue()
 
+# All Latest Data
+all_latest_data_queue = Queue()
+
 
 def get_connection_info(data):
     """
@@ -337,13 +340,6 @@ class ExamplePublisher(object):
         # LOGGER.debug('Scheduling next message for %0.1f seconds', self.PUBLISH_INTERVAL)
         self._connection.ioloop.call_later(self.PUBLISH_INTERVAL, self.publish_message)
 
-    def schedule_next_latest_message(self):
-        """If we are not closing our connection to RabbitMQ, schedule another
-        message to be delivered in PUBLISH_INTERVAL seconds.
-
-        """
-        # LOGGER.debug('Scheduling next message for %0.1f seconds', self.INITIAL_CHANNEL_INTERVAL)
-        self._connection.ioloop.call_later(self.INITIAL_CHANNEL_INTERVAL, self.publish_latest_data)
 
     def counter_validate(self, dict_data: dict):
         if not len(counter_filter_list):
@@ -356,21 +352,6 @@ class ExamplePublisher(object):
             if c in counter:
                 return True
         return False
-
-    def publish_latest_data(self):
-        if self._channel is None or not self._channel.is_open:
-            return
-        hdrs = {u'a': u' b', u'c': u'd', u'e': u'f'}
-        properties = pika.BasicProperties(
-            app_id='example-publisher',
-            content_type='application/json',
-            headers=hdrs)
-        # dict_latest_data = self.sql_db.get_all_to_dict()
-        data = json.dumps("Test Latest Data", ensure_ascii=False)
-        self._channel.basic_publish(self.EXCHANGE, self.INITIAL_ROUTING,
-                                    data,
-                                    properties)
-        self.schedule_next_latest_message()
 
     def publish_message(self):
         """If the class is not stopping, publish a message to RabbitMQ,
@@ -394,21 +375,29 @@ class ExamplePublisher(object):
             headers=hdrs)
         message = data_queue.get()
         q_size = data_queue.qsize()
-        LOGGER.debug(f'queue size: {q_size}')
+        # LOGGER.debug(f'queue size: {q_size}')
         if q_size > 100:
             LOGGER.warning(f'[WARNING] Queue seem stuck: {q_size}')
 
         # Update data to Database
         dict_data = json.loads(message.replace('\r\n', ''))
 
-        if self.counter_validate(dict_data):
-            data = json.dumps(message, ensure_ascii=False)
-            self._channel.basic_publish(self.EXCHANGE, self.ROUTING_KEY,
-                                        data,
-                                        properties)
-            self._message_number += 1
-            # self._deliveries.append(self._message_number)
-            LOGGER.info('[Published message # %i] %s', self._message_number, message)
+        # Update data to Database
+        dict_data = None
+        try:
+            dict_data = json.loads(message.replace('\r\n', ''))
+        except Exception as e:
+            LOGGER.error(f'[data error] {e}\n {message}')
+            dict_data = None
+        if dict_data is not None:
+            if self.counter_validate(dict_data):
+                data = json.dumps(message, ensure_ascii=False)
+                self._channel.basic_publish(self.EXCHANGE, self.ROUTING_KEY,
+                                            data,
+                                            properties)
+                self._message_number += 1
+                # self._deliveries.append(self._message_number)
+                # LOGGER.info('[Published message # %i] %s', self._message_number, message)
         self.schedule_next_message()
 
     def run(self):
@@ -483,7 +472,7 @@ class LatestDataPublisher(object):
     # QUEUE = 'text'
     ROUTING_KEY = config_data.get('amqp_publisher_info', 'example.changed').get('routing_key', 'example.changed')
 
-    INITIAL_CHANNEL_INTERVAL = config_data.get('amqp_latest_data_info', {}).get('interval', 0.2)
+    INITIAL_CHANNEL_INTERVAL = config_data.get('amqp_latest_data_info', {}).get('interval', 0.01)
     INITIAL_ROUTING = config_data.get('amqp_latest_data_info', {}).get('routing_key', 'example.initial')
 
     def __init__(self, connection_data):
@@ -714,13 +703,26 @@ class LatestDataPublisher(object):
             app_id='example-publisher',
             content_type='application/json',
             headers=hdrs)
-        dict_latest_data = self.sql_db.get_all_to_dict()
-        data = json.dumps(dict_latest_data, ensure_ascii=False)
-        self._channel.basic_publish(self.EXCHANGE, self.INITIAL_ROUTING,
-                                    data,
-                                    properties)
-        # self._message_number += 1
-        # LOGGER.info('[publish_latest_data message #%i] %s', self._message_number, dict_latest_data)
+
+
+        q_size = all_latest_data_queue.qsize()
+        if q_size > 0:
+            dict_latest_data = all_latest_data_queue.get()
+
+            if q_size > 100:
+                LOGGER.warning(f'[WARNING] all_latest_data_queue seem stuck: {q_size}')
+            data = json.dumps(dict_latest_data, ensure_ascii=False)
+            self._channel.basic_publish(self.EXCHANGE, self.INITIAL_ROUTING,
+                                        data,
+                                        properties)
+            # self._message_number += 1
+            # LOGGER.info('[publish_latest_data message #%i] %s', self._message_number, dict_latest_data)
+        else:
+            dict_latest_data = self.sql_db.get_all_to_dict()
+            data = json.dumps(dict_latest_data, ensure_ascii=False)
+            self._channel.basic_publish(self.EXCHANGE, self.INITIAL_ROUTING,
+                                        data,
+                                        properties)
         self.schedule_next_latest_message()
 
     def run(self):
@@ -916,19 +918,44 @@ def pull_from_socket_java():
     LOGGER.debug('Pull thread Closed!')
 
 # Update Latest Function
-def update_latest_data():
+def update_latest_data_func():
     try:
         sql_db = SqlDB()
+        # Update All latest data
+        all_latest_data_list = sql_db.get_all_to_dict()
         while True:
             message = update_latest_queue.get()
+            s_time = time.time()
             q_size = update_latest_queue.qsize()
-            LOGGER.debug(f'update_latest_queue size: {q_size}')
-            if q_size > 100:
-                LOGGER.warning(f'[WARNING] update_latest_queue Queue seem stuck: {q_size}')
+            # LOGGER.debug(f'update_latest_queue size: {q_size}')
 
             # Update data to Database
-            dict_data = json.loads(message.replace('\r\n', ''))
-            sql_db.update_latest_data(dict_data)
+            dict_data = None
+            try:
+                dict_data = json.loads(message.replace('\r\n', ''))
+            except Exception as e:
+                LOGGER.error(f'[data error] {e}\n {message}')
+                dict_data = None
+
+            if dict_data is not None:
+                try:
+                    isNewSymbol = True
+                    for idx in range(len(all_latest_data_list)):
+                        if dict_data['symbol'] == all_latest_data_list[idx]['symbol']:
+                            isNewSymbol = False
+                            all_latest_data_list[idx] = dict_data
+                            sql_db.update_latest_data(dict_data, query_type='update')
+                            break
+                    if isNewSymbol:
+                        all_latest_data_list.append(dict_data)
+                        sql_db.update_latest_data(dict_data, query_type='insert')
+
+                    all_latest_data_queue.put_nowait(all_latest_data_list)
+                    if q_size > 100:
+                        LOGGER.warning(f'[WARNING {round(time.time() - s_time, 2)}] update_latest_queue Queue seem stuck: {q_size}')
+                    # LOGGER.info(f'[TIME update_latest] {round(time.time() - s_time, 2)}')
+                except Exception as e:
+                    LOGGER.error(f'[update_latest_data] Error {str(e)}')
     except Exception as e:
         LOGGER.error(str(e))
         pass
@@ -977,18 +1004,18 @@ def launch_program():
 
     # Update Latest Thread
     update_latest_thread = backend_threads.get('update_latest_thread', None)
-    LOGGER.debug(update_latest_thread)
+    # LOGGER.debug(update_latest_thread)
     if update_latest_thread is None or not update_latest_thread.is_alive():
         LOGGER.info('update_latest_thread Shutoff, wait 1 seconds before connect again...')
         time.sleep(1)
-        update_latest_thread = threading.Thread(target=update_latest_data, name='update_latest_thread')
+        update_latest_thread = threading.Thread(target=update_latest_data_func, name='update_latest_thread')
         # update_latest_thread.daemon = True
         update_latest_thread.start()
         backend_threads['update_latest_thread'] = update_latest_thread
 
     # Pull Thread
     pull_thread = backend_threads.get('pull_thread', None)
-    LOGGER.debug(pull_thread)
+    # LOGGER.debug(pull_thread)
     if pull_thread is None or not pull_thread.is_alive():
         LOGGER.info('Pull from Java thread Shutoff, wait 5 seconds before connect again...')
         time.sleep(2)
@@ -996,9 +1023,6 @@ def launch_program():
         # pull_thread.daemon = True
         pull_thread.start()
         backend_threads['pull_thread'] = pull_thread
-
-def filter_crypto_stream_data(data):
-    return True
 
 
 if __name__ == '__main__':
@@ -1010,5 +1034,5 @@ if __name__ == '__main__':
     launch_program()
     while True:
         time.sleep(10)
-        LOGGER.debug('Re-Checking Threads....')
+        # LOGGER.debug('Re-Checking Threads....')
         launch_program()
